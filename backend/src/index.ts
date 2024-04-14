@@ -7,7 +7,11 @@ const app = express();
 const PORT = 5000;
 
 app.use(bodyParser.json());
-app.use(cors());
+app.use(
+  cors({
+    origin: 'http://localhost:3000',
+  })
+);
 
 app.post('/shorten-url', async (req: Request, res: Response) => {
   try {
@@ -17,12 +21,13 @@ app.post('/shorten-url', async (req: Request, res: Response) => {
 
     if (response.status === 200) {
       res.json({ shortUrl: response.data.result_url });
-    } else {
-      res.status(response.status).json({ error: response.data.error });
     }
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    if (axios.isAxiosError(error) && error.response) {
+      res
+        .status(error.response.status)
+        .json({ error: error.response.data.error });
+    } else res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 

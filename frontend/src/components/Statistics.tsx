@@ -62,8 +62,10 @@ const CustomizableWrap = styled(CardWrap)`
 `;
 
 interface ShortenUrlResponse {
+  status: number;
   data: {
     shortUrl: string;
+    error: string | null;
   };
 }
 
@@ -75,27 +77,31 @@ interface StoredLink {
 
 const Statistics = () => {
   const [rawLink, setRawLink] = useState('');
-  const [shortenedLink, setShortenedLink] = useState('');
   const [error, setError] = useState<null | string>(null);
-  const [, setStoredLinks] = useState<StoredLink[]>([]);
+  const [storedLinks, setStoredLinks] = useState<StoredLink[]>([]);
 
   const postUrl = async (url: string) => {
     try {
-      const { data }: ShortenUrlResponse = await axios.post(
+      const res: ShortenUrlResponse = await axios.post(
         'http://localhost:5000/shorten-url',
         {
           url,
         }
       );
 
-      const links = JSON.parse(sessionStorage.getItem('links') || '[]');
-      links.push({ rawUrl: url, shortUrl: data.shortUrl, id: uuidv4() });
-      sessionStorage.setItem('links', JSON.stringify(links));
-      setShortenedLink(data.shortUrl);
-      console.log(sessionStorage.links);
-      return data.shortUrl;
+      const { data, status } = res;
+
+      if (status === 200) {
+        const links = JSON.parse(sessionStorage.getItem('links') || '[]');
+        links.push({ rawUrl: url, shortUrl: data.shortUrl, id: uuidv4() });
+        sessionStorage.setItem('links', JSON.stringify(links));
+
+        setStoredLinks(links);
+      }
     } catch (error) {
-      console.error(error);
+      if (axios.isAxiosError(error) && error.response) {
+        setError(error.response.data.error);
+      }
     }
   };
 
@@ -109,29 +115,12 @@ const Statistics = () => {
 
     postUrl(rawLink);
     setRawLink('');
-    setError(null);
-  };
-
-  const getStoredLinks = () => {
-    const storedLinks = sessionStorage.getItem('links');
-    if (storedLinks) {
-      const parsedLinks = JSON.parse(storedLinks);
-      setStoredLinks(parsedLinks);
-    } else {
-      setStoredLinks([]);
-    }
   };
 
   useEffect(() => {
-    const handleStorageChange = () => {
-      getStoredLinks();
-    };
-    window.addEventListener('storage', handleStorageChange);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, [shortenedLink]);
+    const links = JSON.parse(sessionStorage.getItem('links') || '[]');
+    setStoredLinks(links);
+  }, []);
 
   return (
     <Layout>
@@ -142,14 +131,13 @@ const Statistics = () => {
         error={error}
         setError={setError}
       />
-      {sessionStorage.links &&
-        JSON.parse(sessionStorage.links).map((link: StoredLink) => (
-          <ShortenedLink
-            key={link.id}
-            rawLink={link.rawUrl}
-            shortenedLink={link.shortUrl}
-          />
-        ))}
+      {storedLinks.map((link: StoredLink) => (
+        <ShortenedLink
+          key={link.id}
+          rawLink={link.rawUrl}
+          shortenedLink={link.shortUrl}
+        />
+      ))}
       <BlockWrap>
         <Block>
           <Text>Advanced Statistics</Text>
